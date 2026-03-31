@@ -1,0 +1,1 @@
+ALTER TABLE public.voters_master DROP COLUMN wallet_address;

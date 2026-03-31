@@ -1,0 +1,1 @@
+ALTER TABLE public.voters_master RENAME COLUMN student_id TO voter_id;
