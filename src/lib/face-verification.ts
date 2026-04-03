@@ -136,10 +136,29 @@ export async function captureFrameFromVideo(video: HTMLVideoElement): Promise<HT
   return canvas;
 }
 
+export type FaceConfidenceTier = 'high' | 'moderate' | 'low' | 'none';
+
 export interface FaceVerificationResult {
   success: boolean;
   similarity: number;
   message: string;
+  confidenceTier: FaceConfidenceTier;
+}
+
+export function getConfidenceTier(similarity: number): FaceConfidenceTier {
+  if (similarity >= 70) return 'high';
+  if (similarity >= 55) return 'moderate';
+  if (similarity > 0) return 'low';
+  return 'none';
+}
+
+export function getConfidenceTierLabel(tier: FaceConfidenceTier): string {
+  switch (tier) {
+    case 'high': return 'উচ্চ আত্মবিশ্বাস';
+    case 'moderate': return 'মাঝারি আত্মবিশ্বাস';
+    case 'low': return 'নিম্ন আত্মবিশ্বাস';
+    case 'none': return 'চেহারা পাওয়া যায়নি';
+  }
 }
 
 export async function verifyFaceAgainstImage(
@@ -160,6 +179,7 @@ export async function verifyFaceAgainstImage(
         success: false,
         similarity: 0,
         message: 'আইডি কার্ডে চেহারা খুঁজে পাওয়া যায়নি',
+        confidenceTier: 'none',
       };
     }
     
@@ -173,19 +193,31 @@ export async function verifyFaceAgainstImage(
         success: false,
         similarity: 0,
         message: 'লাইভ ভিডিওতে চেহারা খুঁজে পাওয়া যায়নি',
+        confidenceTier: 'none',
       };
     }
     
     // Compare faces
     const similarity = compareFaces(referenceDescriptor, liveDescriptor);
     const isMatch = similarity >= threshold;
+    const confidenceTier = getConfidenceTier(similarity);
+    
+    let message: string;
+    if (isMatch && confidenceTier === 'high') {
+      message = `চেহারা মিলেছে — উচ্চ আত্মবিশ্বাস (${Math.round(similarity)}%)`;
+    } else if (isMatch && confidenceTier === 'moderate') {
+      message = `চেহারা মিলেছে — মাঝারি আত্মবিশ্বাস (${Math.round(similarity)}%)`;
+    } else if (similarity >= 30) {
+      message = `চেহারা মেলেনি (${Math.round(similarity)}% সাদৃশ্য)। ভালো আলোতে আবার চেষ্টা করুন।`;
+    } else {
+      message = `চেহারা মেলেনি (${Math.round(similarity)}%)। আইডি কার্ড পুনরায় স্ক্যান করুন।`;
+    }
     
     return {
       success: isMatch,
       similarity: Math.round(similarity),
-      message: isMatch 
-        ? `চেহারা মিলেছে (${Math.round(similarity)}% সাদৃশ্য)` 
-        : `চেহারা মেলেনি (${Math.round(similarity)}% সাদৃশ্য)`,
+      message,
+      confidenceTier,
     };
   } catch (error) {
     console.error('Face verification error:', error);
@@ -193,6 +225,7 @@ export async function verifyFaceAgainstImage(
       success: false,
       similarity: 0,
       message: error instanceof Error ? error.message : 'যাচাই করতে সমস্যা হয়েছে',
+      confidenceTier: 'none',
     };
   }
 }

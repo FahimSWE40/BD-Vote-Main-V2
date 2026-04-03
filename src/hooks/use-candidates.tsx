@@ -11,6 +11,7 @@ export interface Candidate {
   manifesto: string | null;
   vote_count: number;
   is_active: boolean;
+  constituency_id: string | null;
   created_at: string;
   updated_at: string;
 }

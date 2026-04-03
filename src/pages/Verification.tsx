@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { CreditCard, ScanFace, CheckCircle, Camera, RotateCcw, HelpCircle, Info, Loader2, AlertCircle, XCircle } from "lucide-react";
+import { CreditCard, ScanFace, CheckCircle, Camera, RotateCcw, HelpCircle, Info, Loader2, AlertCircle, XCircle, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -11,10 +11,11 @@ import { Footer } from "@/components/layout/Footer";
 import { cn } from "@/lib/utils";
 import { useCamera } from "@/hooks/use-camera";
 import { extractIdCardData, ExtractedData, terminateOCR } from "@/lib/ocr";
-import { loadFaceModels, detectFace, getFaceDescriptor, compareFaces, captureFrameFromVideo } from "@/lib/face-verification";
+import { loadFaceModels, detectFace, getFaceDescriptor, compareFaces, captureFrameFromVideo, getConfidenceTierLabel } from "@/lib/face-verification";
 import { LivenessDetector, getChallengeInstruction, getChallengeIcon } from "@/lib/liveness-detection";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useActiveElection } from "@/hooks/use-election-config";
 
 type Step = 'id-scan' | 'face-scan' | 'complete';
 
@@ -37,7 +38,12 @@ export default function Verification() {
   const [livenessEmoji, setLivenessEmoji] = useState('');
   const [modelsReady, setModelsReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [verificationResult, setVerificationResult] = useState<{ success: boolean; similarity: number } | null>(null);
+  const [verificationResult, setVerificationResult] = useState<{ success: boolean; similarity: number; confidenceTier?: string } | null>(null);
+  const [faceRetryCount, setFaceRetryCount] = useState(0);
+  const MAX_FACE_RETRIES = 3;
+
+  // FR-21: Election lifecycle check
+  const { data: activeElection, isLoading: electionLoading } = useActiveElection();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -151,6 +157,11 @@ export default function Verification() {
       
       setVoterData(voter);
       
+      // FR-5: Store constituency info in sessionStorage for Ballot page filtering
+      if (voter.constituency_id) {
+        sessionStorage.setItem('verified_voter_constituency_id', voter.constituency_id);
+      }
+      
       toast({
         title: 'আইডি কার্ড যাচাই সফল',
         description: `${data.fullName || voter.full_name} - আইডি: ${data.voterId}`,
@@ -214,6 +225,12 @@ export default function Verification() {
       }
       
       setVoterData(voter);
+
+      // FR-5: Store constituency info in sessionStorage for Ballot page filtering
+      if (voter.constituency_id) {
+        sessionStorage.setItem('verified_voter_constituency_id', voter.constituency_id);
+      }
+
       toast({
         title: 'আইডি কার্ড যাচাই সফল',
         description: `${data.fullName || voter.full_name} - আইডি: ${data.voterId}`,
@@ -361,6 +378,9 @@ export default function Verification() {
     if (voterData) {
       sessionStorage.setItem('verified_voter_id', voterData.id);
       sessionStorage.setItem('verified_voter_name', voterData.full_name);
+      if (voterData.constituency_id) {
+        sessionStorage.setItem('verified_voter_constituency_id', voterData.constituency_id);
+      }
     }
     
     toast({
@@ -377,6 +397,7 @@ export default function Verification() {
     setOcrProgress(0);
     setFaceMatchProgress(0);
     setVerificationResult(null);
+    setFaceRetryCount(prev => prev + 1);
     livenessRef.current.reset();
     cancelAnimationFrame(animFrameRef.current);
   };
@@ -389,6 +410,33 @@ export default function Verification() {
 
       <main className="flex-1 py-6 sm:py-8 lg:py-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-10">
+
+          {/* FR-21: Election Lifecycle Check */}
+          {!electionLoading && (!activeElection || !activeElection.is_active) && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+              <Card className="border-destructive/30 bg-destructive/5">
+                <CardContent className="p-4 sm:p-6 flex items-center gap-4">
+                  <ShieldAlert className="size-8 text-destructive shrink-0" />
+                  <div>
+                    <h3 className="font-bold text-destructive text-base sm:text-lg">
+                      {!activeElection ? 'কোনো নির্বাচন কনফিগার করা হয়নি' : 'নির্বাচন বর্তমানে নিষ্ক্রিয়'}
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {!activeElection 
+                        ? 'অ্যাডমিন প্যানেল থেকে নির্বাচন তৈরি ও সক্রিয় করুন।'
+                        : activeElection.end_time && new Date(activeElection.end_time) < new Date()
+                          ? 'নির্বাচনের নির্ধারিত সময় শেষ হয়ে গেছে।'
+                          : activeElection.start_time && new Date(activeElection.start_time) > new Date()
+                            ? `নির্বাচন শুরু হবে: ${new Date(activeElection.start_time).toLocaleString('bn-BD')}`
+                            : 'নির্বাচন এখনো শুরু হয়নি বা বন্ধ করা হয়েছে।'
+                      }
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
           {/* Breadcrumb */}
           <div className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6">
             <span className="text-primary">BD Vote</span>

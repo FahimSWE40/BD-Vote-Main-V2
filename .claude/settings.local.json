@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /f/shobdo-voter-main -type f \\\\\\(-name .*rc* -o -name *.config.* -o -name *.conf* -o -name Makefile -o -name .env* \\\\\\))",
+      "Bash(grep -rn lovable /f/shobdo-voter-main --exclude-dir=node_modules --exclude=*.lock)",
+      "Bash(find /f/shobdo-voter-main -type f -name package.json -o -name README.md -o -name .env* -o -name tsconfig.json -o -name vite.config.ts)",
+      "Bash(find /f/shobdo-voter-main -maxdepth 1 -type f \\\\\\(-name *.md -o -name .env* -o -name *.json \\\\\\))",
+      "Bash(xargs -I {} basename {})",
+      "Bash(git remote:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "mcp__claude_ai_Supabase__list_organizations",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__list_tables",
+      "mcp__claude_ai_Supabase__list_migrations",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "mcp__claude_ai_Supabase__get_project_url",
+      "mcp__claude_ai_Supabase__get_publishable_keys"
+    ]
+  }
+}
