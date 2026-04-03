@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ScanFace, CheckCircle, Camera, RotateCcw, XCircle, Shield, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,12 +28,27 @@ export function FaceVerificationModal({
 }: FaceVerificationModalProps) {
   const [status, setStatus] = useState<VerificationStatus>('idle');
   const [progress, setProgress] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // Reset state when modal opens
   useEffect(() => {
     if (open) {
       setStatus('idle');
       setProgress(0);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then((stream) => {
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+        })
+        .catch((err) => {
+          console.error("Camera error:", err);
+        });
     }
   }, [open]);
 
@@ -68,8 +83,14 @@ export function FaceVerificationModal({
 
   const handleClose = () => {
     if (status !== 'scanning') {
+      stopCamera();
       onOpenChange(false);
     }
+  };
+
+  const stopCamera = () => {
+    const stream = videoRef.current?.srcObject as MediaStream;
+    stream?.getTracks().forEach(track => track.stop());
   };
 
   return (
@@ -146,6 +167,13 @@ export function FaceVerificationModal({
 
               {/* Camera Preview */}
               <div className="relative aspect-[4/3] bg-muted rounded-xl overflow-hidden mb-4">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="absolute top-0 left-0 w-full h-full object-cover"
+                />
                 <div className="absolute top-3 left-3 bg-destructive text-destructive-foreground px-2.5 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 z-10">
                   <span className="size-1.5 bg-destructive-foreground rounded-full animate-pulse" />
                   LIVE
